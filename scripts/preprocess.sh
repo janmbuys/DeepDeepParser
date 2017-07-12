@@ -8,7 +8,7 @@ for TYPE in dmrs eds; do
 
   # Construct lexicon.
   python $HOME/DeepDeepParser/mrs/extract_erg_lexicon.py $ERG_DIR $MRS_WDIR
-  python $HOME/DeepDeepParser/mrs/extract_data_lexicon.py $MRS_DIR
+  python $HOME/DeepDeepParser/mrs/extract_data_lexicon.py $MRS_DIR $MRS_WDIR
 
   # Runs Stanford NLP tools over input.
 
@@ -27,10 +27,10 @@ for TYPE in dmrs eds; do
   rm FILELIST
 
   # Processes Stanford NLP output.
-  python $HOME/DeepDeepParser/mrs/stanford_to_linear.py $MRS_DIR
+  python $HOME/DeepDeepParser/mrs/stanford_to_linear.py $MRS_DIR $MRS_WDIR $MRS_WDIR
 
   # Converts MRS graphs to multiple linearizations.
-  python $HOME/DeepDeepParser/mrs/read_mrs.py $MRS_DIR $TYPE 
+  python $HOME/DeepDeepParser/mrs/read_mrs.py $MRS_DIR $MRS_WDIR $TYPE 
 
 done
 

@@ -24,10 +24,9 @@ import util as mrs_util
 
 if __name__=='__main__':
   assert len(sys.argv) >= 2
-  data_name = sys.argv[1]
-  input_dir = data_name + '/'
-  working_dir = data_name + '-working/'
-  out_dir = data_name + '-working/'
+  input_dir = sys.argv[1] + '/'
+  working_dir = sys.argv[2] + '/'
+  out_dir = working_dir
 
   set_name = 'train'
   suffix = '.raw'

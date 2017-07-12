@@ -1722,6 +1722,90 @@ class MrsGraph():
           s += property_triple + ' ; '
     return s
 
+  def epe_str(self, graph_id, surface, offset=0):
+    include_features = False
+    s = '{"id": ' + str(graph_id+1) + ', '
+    node_strs = []
+    for i, node in enumerate(self.nodes):
+      concept = node.concept
+      if concept.endswith('_rel'):
+        concept = concept[:-4]
+      node_s = '{"id": ' + str(i+1) + ', '
+      start_ind = int(node.ind.split(':')[0])
+      end_ind = int(node.ind.split(':')[1])
+
+      node_s += '"form": "' + surface[start_ind:end_ind] + '", '
+      node_s += '"start": ' + str(start_ind + offset) + ', '
+      node_s += '"end": ' + str(end_ind + offset) + ', '
+      if i == self.root_index:
+        node_s += '"top": true, '
+      prop_strs = []
+      if concept[0] == '_':
+        # Properties for surface predicates.
+        if '/' in concept[1:] and 'unknown' in concept[1:]:
+          split_ind = concept.index('/', 1)
+          cross_ind = concept.index('_', 1)
+          word = concept[1:split_ind]
+          pos = concept[split_ind+1:cross_ind]
+          if '_unknown' in concept:
+            sense = concept[cross_ind+1:concept.index('_unknown')]
+          else:
+            sense = concept[cross_ind+1]
+          prop_strs.append('"type": "unknown"')
+          prop_strs.append('"predicate": "' + sense + '"')
+          prop_strs.append('"lemma": "' + word + '"')
+        elif '_' in concept[1:]:  
+          split_ind = concept.index('_', 1)
+          lemma = concept[1:split_ind]
+          sense = concept[split_ind+1:]
+          prop_strs.append('"type": "surface"')
+          prop_strs.append('"predicate": "' + sense + '"')
+          prop_strs.append('"lemma": "' + lemma + '"')
+        else:
+          prop_strs.append('"type": "surface"') # but no lemma
+          prop_strs.append('"predicate": "' + concept[1:] + '"')
+        pos = node.pos[1:] if node.pos[0] == '_' else node.pos
+        prop_strs.append('"pos": "' + pos + '"')
+        ne = node.ne[:node.ne.index('_C')] if '_C' in node.ne else node.ne
+        if ne <> 'O':
+          prop_strs.append('"ner": "' + ne + '"')
+      else:
+        prop_strs.append('"predicate": "' + concept + '"')
+        if node.constant:  
+          prop_strs.append('"type": "constant"')
+          if node.constant[0] == '"' and node.constant[-1] == '"':
+            const = node.constant
+          else:  
+            const = '"' + node.constant + '"'
+          prop_strs.append('"lemma": ' + const)
+          ne = node.ne[:node.ne.index('_C')] if '_C' in node.ne else node.ne
+          prop_strs.append('"ner": "' + ne + '"')
+        else:
+          prop_strs.append('"type": "abstract"')
+
+      if include_features:
+        for feature in node.features:
+          attribute, value = feature.split('=')[0], feature.split('=')[1]
+          prop_strs.append('"' + attribute + '": "' + value + '"')
+
+      node_s += '"properties": {' + ', '.join(prop_strs) + '}'  
+
+      edge_strs = []
+      for k, child_index in enumerate(node.edges): 
+        edge_s = '{"label": "' + node.relations[k] + '", '
+        edge_s += '"target": ' + str(child_index+1) + '}'
+        edge_strs.append(edge_s)
+      if edge_strs:
+        node_s += ', "edges": [' + ', '.join(edge_strs) + ']'
+
+      node_s += '}'
+      node_strs.append(node_s)
+    
+    s += '"nodes": [' + ', '.join(node_strs) + ']'
+    s += '}'
+    return s
+
+
 def read_preds_only_graphs(dmrs_file_name):
   dmrs_file = open(dmrs_file_name, 'r')
   graphs = []

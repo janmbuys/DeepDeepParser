@@ -261,7 +261,7 @@ def read_sentences_normalize_ne(stanford_file_name):
   return sentences
 
 
-def read_sentences(stanford_file_name):
+def read_sentences(stanford_file_name, file_id):
   stanford_file = codecs.open(stanford_file_name, 'r', 'utf-8')
 
   sentences = []
@@ -269,18 +269,29 @@ def read_sentences(stanford_file_name):
   tokens = []
 
   text_line = ''
+  state_line = ''
   sent_offset = 0
   state = False
+  state1 = False
 
   for line in stanford_file:
     if line.startswith('Sentence #'):
       if state:
         sentences.append(asent.Sentence(tokens))
+        sentences[-1].offset = sent_offset
+        sentences[-1].raw_txt = text_line
+        sentences[-1].file_id = file_id
+        text_line = ''
+        state_line = ''
         tokens = []
         state = False
-    elif line.startswith('[Text=') and line[-2]==']':
-      token = asent.Token.parse_stanford_line(line[1:-2], {})
-      if not state:
+        state1 = False
+    elif len(line) > 1 and line[-2]==']' and (state or line.startswith('[Text=')):
+      if state_line:
+        token = asent.Token.parse_stanford_line(state_line + ' ' + line[:-2], {})
+      else:
+        token = asent.Token.parse_stanford_line(line[1:-2], {})
+      if not state1:
         sent_offset = token.char_start
       ind_start = token.char_start - sent_offset 
       ind_end = token.char_end - sent_offset 
@@ -315,15 +326,26 @@ def read_sentences(stanford_file_name):
       else:  
         tokens.append(token)
       state = True
-    elif line.strip():
-      text_line = line.strip()
+      state1 = True
+    elif line.startswith('[Text='):
+      state_line = line[1:].strip()
+      state = True
+    else: #if line.strip():
+      if state:
+        state_line += ' ' + line.strip()
+      else:    
+        text_line += line.replace('\n', ' ')
   if state:
     sentences.append(asent.Sentence(tokens))
+    sentences[-1].offset = sent_offset
+    sentences[-1].raw_txt = text_line
+    sentences[-1].file_id = file_id
   return sentences
 
 
 def process_stanford(input_dir, working_dir, erg_dir, set_name, 
-    use_pred_lexicon=True, use_const_lexicon=True, normalize_ne=False):
+    use_pred_lexicon=True, use_const_lexicon=True, normalize_ne=False,
+    read_epe=False):
   nom_map = {}
   wiki_map = {}
   if use_pred_lexicon:
@@ -339,11 +361,22 @@ def process_stanford(input_dir, working_dir, erg_dir, set_name,
   else:
     const_map = {}
 
-  suffix = '.raw'
-  if normalize_ne:
-    sentences = read_sentences_normalize_ne((working_dir + set_name + suffix + '.out'))
+  if read_epe:
+    file_ids = []
+    in_type = input_dir[4:-1]
+    file_list = open(in_type + '.' + set_name + '.list', 'r').read().split('\n')[:-1]
+    file_ids = [name[name.rindex('/')+1:] for name in file_list]
+    sentences = []
+    for file_id in file_ids:
+      sentences.extend(read_sentences(
+        (working_dir + '/raw-' + set_name + '/' + file_id + '.out'), 
+         file_id))
   else:
-    sentences = read_sentences((working_dir + set_name + suffix + '.out'))
+    suffix = '.raw'
+    if normalize_ne:
+      sentences = read_sentences_normalize_ne((working_dir + set_name + suffix + '.out'))
+    else:
+      sentences = read_sentences((working_dir + set_name + suffix + '.out'), '0')
 
   max_token_span_length = 5
   for i, sent in enumerate(sentences):
@@ -441,24 +474,27 @@ Processing performed: Tokenize, lemmize, normalize numbers and time
 expressions, insert variable tokens for named entities etc.
 '''
 if __name__=='__main__':
-  assert len(sys.argv) >= 2
-  data_name = sys.argv[1]
+  assert len(sys.argv) >= 4
+  input_dir = sys.argv[1] + '/'
+  working_dir = sys.argv[2] + '/'
+  erg_dir = sys.argv[3] + '/'
+
+  read_epe = len(sys.argv) > 4 and '-epe' in sys.argv[4:]
+
   set_list = ['train', 'dev', 'test']
-
-  normalize_ne = len(sys.argv) > 2 and '-n' in sys.argv[2:]
-
-  input_dir = data_name + '/'
-  working_dir = data_name + '-working/'
-  erg_dir = working_dir
+  normalize_ne = len(sys.argv) > 4 and '-n' in sys.argv[4:]
 
   use_pred_lexicon = True
   use_const_lexicon = True
 
   for set_name in set_list:
     sentences = process_stanford(input_dir, working_dir, erg_dir, set_name,
-        use_pred_lexicon, use_const_lexicon, normalize_ne)
+        use_pred_lexicon, use_const_lexicon, normalize_ne, read_epe)
  
     sent_output_file = open(working_dir + set_name + '.en', 'w')
+    sent_offsets_file = open(working_dir + set_name + '.off', 'w')
+    sent_ids_file = open(working_dir + set_name + '.ids', 'w')
+    sent_txt_file = open(working_dir + set_name + '.txt', 'w')
     pred_output_file = open(working_dir + set_name + '.lex.pred', 'w')
     const_output_file = open(working_dir + set_name + '.lex.const', 'w')
     wiki_output_file = open(working_dir + set_name + '.lex.wiki', 'w')
@@ -486,6 +522,10 @@ if __name__=='__main__':
       const_output_file.write(lex_enc)
       lex_str = sent.wiki_lexeme_str()
       lex_enc = lex_str.encode('utf-8', 'replace')
+      sent_offsets_file.write(str(sent.offset) + '\n')
+      sent_ids_file.write(str(sent.file_id) + '\n')
+      txt_enc = sent.raw_txt.encode('utf-8', 'replace')
+      sent_txt_file.write(txt_enc + '\n')
       wiki_output_file.write(lex_enc)
       pos_output_file.write(sent.pos_str())
       ne_output_file.write(sent.ne_tag_str())

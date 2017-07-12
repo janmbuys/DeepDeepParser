@@ -18,11 +18,11 @@ import sys
 import graph as mrs_graph
 
 if __name__=='__main__':
-  data_name = sys.argv[1]
-  data_type = sys.argv[2] # dmrs or eds
+  assert len(sys.argv) >= 4
+  input_dir = sys.argv[1] + '/'
+  working_dir = sys.argv[2] + '/'
+  data_type = sys.argv[3] # dmrs or eds
 
-  input_dir = data_name + '/'
-  working_dir = data_name + '-working/'
   set_names = ['train', 'dev', 'test']
   suffix = '.raw'
 
