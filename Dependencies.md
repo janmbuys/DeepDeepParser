@@ -1,7 +1,6 @@
 This file specifies the external software required for running this code and obtaining and processing the data.
-Certain environment variables have to be set.
-
-## Python 2.7.
+Note that environment variables have to be set.
+The implementation is in Python 2.7.
 
 ## Tensorflow 0.11 or 0.12.
 Earlier or later versions may not be compatible.
@@ -22,7 +21,7 @@ Includes Redwoods and DeepBank treebanks.
     svn checkout http://svn.delph-in.net/erg/tags/1214 $ERG_DIR
 
 ## LOGON 
-Used to extract graph representations from the ERG treebanks.
+Contains code to extract graph representations from the ERG treebanks.
 
     LOGONROOT=logon
     svn checkout http://svn.emmtee.net/trunk $LOGONROOT
@@ -34,18 +33,21 @@ Include in your .bashrc:
       . ${LOGONROOT}/dot.bashrc
     fi
 
-## Smatch
-https://github.com/snowblink14/smatch 
-
 ## PyDelphin 
+(D)MRS conversion tools.
 https://github.com/delph-in/pydelphin
 
-## ACE (ERG parser) 
+## ACE 
+ERG parser.
 http://sweaglesw.org/linguistics/ace/
 
 Download ACE: 
 http://sweaglesw.org/linguistics/ace/download/ace-0.9.25-x86-64.tar.gz
 
-Download ERG 1214 grammar image, unzip and place in $ERG_DIR: 
+as well as the ERG 1214 grammar image (unzip and place in $ERG_DIR): 
 http://sweaglesw.org/linguistics/ace/download/erg-1214-x86-64-0.9.25.dat.bz2  
+
+## Smatch
+Graph parser evaluation.
+https://github.com/snowblink14/smatch 
 
