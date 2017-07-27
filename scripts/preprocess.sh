@@ -32,5 +32,20 @@ for TYPE in dmrs eds; do
   # Converts MRS graphs to multiple linearizations.
   python $HOME/DeepDeepParser/mrs/read_mrs.py $MRS_DIR $MRS_WDIR $TYPE 
 
+  # Copies data for parser training.
+
+  LIN_DIR=${TYPE}-parse-data-deepbank
+  mkdir -p $LIN_DIR
+  ORACLE=dmrs.ae.ao # Arc-eager parser, alignment-ordered oracle
+
+  for SET in train dev test; do
+    cp $MRS_WDIR/${SET}.en $MRS_WDIR/${SET}.pos $MRS_WDIR/${SET}.ne $LIN_DIR/
+    cp $MRS_WDIR/${SET}.${ORACLE}.nospan.unlex.lin $LIN_DIR/${SET}.parse
+    cp $MRS_WDIR/${SET}.${ORACLE}.point.lin $LIN_DIR/${SET}.att
+    cp $MRS_WDIR/${SET}.${ORACLE}.endpoint.lin $LIN_DIR/${SET}.endatt
+  done
+
+  python $HOME/DeepDeepParser/scripts/find_bucket_sizes.py $LIN_DIR/train.en $LIN_DIR/train.parse > $LIN_DIR/buckets
+
 done
 

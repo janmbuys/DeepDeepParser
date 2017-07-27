@@ -47,7 +47,7 @@ import data_utils
 import seq2seq_model
 
 tf.app.flags.DEFINE_string("data_dir", "parsing-data", "Data directory")
-tf.app.flags.DEFINE_string("embeddings_dir", "parsing-data", "Embeddings directory")
+tf.app.flags.DEFINE_string("embedding_vectors", "vectors.en", "Pre-trained word embeddings")
 tf.app.flags.DEFINE_string("train_dir", "working", "Training directory.")
 tf.app.flags.DEFINE_string("train_name", "train", 
                            "Training set file name.")
@@ -95,13 +95,13 @@ tf.app.flags.DEFINE_float("input_drop_prob", 0.0,
                           "Dropout on input.")
 tf.app.flags.DEFINE_float("output_drop_prob", 0.0,
                           "Dropout on output.")
-tf.app.flags.DEFINE_float("singleton_keep_prob", 1.0,
+tf.app.flags.DEFINE_float("singleton_keep_prob", 0.5,
                           "Probability to include encoder singletons in vocabs.")
 tf.app.flags.DEFINE_integer("batch_size", 64,
                             "Batch size to use during training.")
 
-tf.app.flags.DEFINE_integer("size", 128, "Size of each model layer.")
-tf.app.flags.DEFINE_integer("input_embedding_size", 128,
+tf.app.flags.DEFINE_integer("size", 256, "Size of each model layer.")
+tf.app.flags.DEFINE_integer("input_embedding_size", 256,
                             "Size of input embedding layer.")
 tf.app.flags.DEFINE_integer("output_embedding_size", 128,
                             "Size of output embedding layer.")
@@ -143,7 +143,7 @@ tf.app.flags.DEFINE_boolean("offset_pointers", False,
                             "Offset pointer positions by 1.")
 tf.app.flags.DEFINE_boolean("use_encoder_tags", False,
                             "Use input POS and NE label features in encoder.")
-tf.app.flags.DEFINE_boolean("use_bidirectional_encoder", False,
+tf.app.flags.DEFINE_boolean("use_bidirectional_encoder", True,
                             "Use bidirectional encoder.")
 tf.app.flags.DEFINE_boolean("initialize_word_vectors", False,
                             "Initialize with external input word vectors.")
@@ -566,7 +566,7 @@ def train():
   data_types = [source_data_types, target_data_types]
 
   if FLAGS.use_pretrained_word_vectors or FLAGS.initialize_word_vectors:
-    word_vector_path = os.path.join(FLAGS.embeddings_dir, "vectors.en")
+    word_vector_path = FLAGS.embedding_vectors
     word_vector_vocab_path = os.path.join(FLAGS.data_dir, "vocab.em")
     word_vectors = data_utils.read_word_vectors(word_vector_path,
         word_vector_vocab_path)
@@ -829,7 +829,7 @@ def mrs_decode(score_only=False):
                  for data_type in vocab_data_types]
 
   if FLAGS.use_pretrained_word_vectors or FLAGS.initialize_word_vectors:
-    word_vector_path = os.path.join(FLAGS.embeddings_dir, "vectors.en")
+    word_vector_path = FLAGS.embedding_vectors
     word_vector_vocab_path = os.path.join(FLAGS.data_dir, "vocab.em")
     word_vectors = data_utils.read_word_vectors(word_vector_path,
         word_vector_vocab_path)
