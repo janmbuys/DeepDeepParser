@@ -7,11 +7,16 @@ See Dependencies.md
 
 ## Data preparation
 
-To extract DMRS and EDS graphs from DeepBank: scripts/extract-deepbank.sh (requires the LOGON environment and full original data.)
+To extract DMRS and EDS graphs from DeepBank (requires the LOGON environment and full original data):
 
-To extract DMRS and EDS graphs from the SDP release of DeepBank: scripts/extract-deepbank-sdp.sh (does not require the LOGON environment.)
+    scripts/extract-deepbank.sh
+
+To extract DMRS and EDS graphs from the SDP release of DeepBank (does not require the LOGON environment):
+    
+    scripts/extract-deepbank-sdp.sh 
 
 Pre-processing (constructs lexicon, runs Stanford CoreNLP, constructs graph linearizations/oracle transition sequences): 
+
     scripts/preprocess.sh
 
 ## Training
@@ -35,6 +40,7 @@ Decode with the parser (transition-based model):
 where `data_dir` contains the pre-processed files for decoding (`filename.en`, `filename.ne`, `filename.pos`) as well as a `buckets` file, and `working_dir` contains the model (checkpoint) file.
 
 Suggested `buckets`:
+
     24 77
     37 133
     52 201
