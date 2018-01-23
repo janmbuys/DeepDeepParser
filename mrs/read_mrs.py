@@ -1,4 +1,4 @@
-# Copyright 2017 Jan Buys.
+# Copyrjght 2017 Jan Buys.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,12 +26,16 @@ if __name__=='__main__':
   set_names = ['train', 'dev', 'test']
   suffix = '.raw'
 
+  compute_statistics = False
+
+  offset = 0 
   for set_name in set_names:
     sent_file = open(input_dir + set_name + suffix, 'r')
     sentences_raw = [sent for sent in sent_file.read().split('\n')[:-1]]
 
     # Reads token indexes.
-    inds_filename = working_dir + set_name + '.span'
+    inds_filename = input_dir + set_name + '.span' # temp
+    #inds_filename = working_dir + set_name + '.span'
     inds_file = open(inds_filename, 'r')  
     token_inds = []
     token_starts = []
@@ -102,7 +106,37 @@ if __name__=='__main__':
 
     edm_out_file = open(working_dir + set_name + '.edm', 'w')
     edmu_out_file = open(working_dir + set_name + '.edmu', 'w')
+    epe_out_file = open(working_dir + set_name + '.json', 'w')
+    epe_orig_parse_out_file = open(working_dir + set_name + '.dmrs.orig.json', 'w')
+    epe_parse_out_file = open(working_dir + set_name + '.dmrs.json', 'w')
     amr_out_file = open(working_dir + set_name + '.amr', 'w')
+
+    # accumulate statistics
+    num_nodes = 0
+    num_phrasal_nodes = 0.0
+    num_overlapping_nodes = 0.0
+    num_spans = 0.0
+    num_multi_spans = 0.0
+
+    num_outside_phrases = 0.0
+    num_inside_phrases = 0.0
+    num_anchored_phrases = 0.0
+    num_phrase_phrase_edges = 0.0
+    num_phrase_edges = 0.0
+    num_word_phrase_edges = 0.0
+    num_word_anchored_edges = 0.0
+    num_edges = 0.0
+    num_self_edges = 0.0
+
+    surface1 = 0.0
+    surface2 = 0.0
+    surfacem = 0.0
+    abstract1 = 0.0
+    abstract2 = 0.0
+    abstract5 = 0.0
+    abstract10 = 0.0
+    abstract20 = 0.0
+    abstractm = 0.0
 
     for i, simple_str in enumerate(simple_strs):
       if data_type == 'dmrs': 
@@ -121,9 +155,9 @@ if __name__=='__main__':
           found = False
           if (pred[0] == '"' and pred[-1] == '"') or pred[0] == '_':
             continue
-          for i, node in enumerate(graph.nodes):
+          for j, node in enumerate(graph.nodes):
             if node.ind == ind and node.concept == pred:
-              graph.nodes[i].constant = const
+              graph.nodes[j].constant = const
               found = True
           if not found:
             print "Constant not found:", pred, const
@@ -132,20 +166,52 @@ if __name__=='__main__':
                                     token_starts[i], token_ends[i], 
                                     sentences_raw[i])
 
-
       graph.find_span_tree(graph.root_index)
 
       graph.find_alignment_spans(graph.root_index)
       graph.find_span_edge_directions()
 
       # Validate alignments.
-      for i, node in enumerate(graph.nodes):
-        if graph.spanned[i] and node.alignment >= 0:
+      for j, node in enumerate(graph.nodes):
+        if graph.spanned[j] and node.alignment >= 0:
           if node.constant:
-            graph.nodes[i].is_aligned = True
+            graph.nodes[j].is_aligned = True
         elif node.concept.startswith('_'): # lexical concepts
-          graph.nodes[i].is_aligned = True
+          graph.nodes[j].is_aligned = True
     
+      if compute_statistics:
+        num_nodes += len(graph.nodes)
+        num_overlapping_nodes += graph.num_overlapping_nodes()
+        num_phrasal_nodes += graph.num_phrasal_nodes()
+        num_self_edges += graph.num_self_edges()
+
+        num_multi, num_span = graph.num_unaries()
+        num_multi_spans += num_multi
+        num_spans += num_span
+
+        num_outside, num_inside, num_anchored, num_phrase_phrase, num_phrase, num_edge = graph.num_phrase_phrase_spans()
+        num_word_phrase, num_word_anchored, _ = graph.num_word_phrase_spans()
+        s1, s2, sm, a1, a2, a5, a10, a20, am = graph.num_predicate_types()
+        
+        surface1 += s1
+        surface2 += s2
+        surfacem += sm
+        abstract1 += a1
+        abstract2 += a2
+        abstract5 += a5
+        abstract10 += a10
+        abstract20 += a20
+        abstractm += am
+
+        num_outside_phrases += num_outside
+        num_inside_phrases += num_inside
+        num_anchored_phrases += num_anchored
+        num_phrase_phrase_edges += num_phrase_phrase
+        num_phrase_edges += num_phrase
+        num_edges += num_edge
+        num_word_phrase_edges += num_word_phrase
+        num_word_anchored_edges += num_word_anchored
+      
       # Writes output to files.
       lin_amr_out_file.write(':focus( ' 
           + graph.linear_amr_str(graph.root_index) + ' )\n')
@@ -230,6 +296,12 @@ if __name__=='__main__':
       edm_out_file.write(graph.edm_ch_str(True) + '\n')
       edmu_out_file.write(graph.edm_ch_str(False) + '\n')
 
+      if len(graph.nodes) > 0:
+        epe_out_file.write((graph.json_str(i, sentences_raw[i], offset) + '\n').encode('utf-8', 'replace'))
+        #offset += len(sentences_raw[i])
+        epe_parse_out_file.write((graph.json_parse_str(i) + '\n').encode('utf-8', 'replace'))
+        epe_orig_parse_out_file.write((graph.json_orig_parse_str(i) + '\n').encode('utf-8', 'replace'))
+
       if len(graph.nodes) == 0:
         amr_out_file.write('( n1 / _UNK )\n\n')
       else:
@@ -237,4 +309,40 @@ if __name__=='__main__':
         graph.correct_concept_names()
         graph.correct_node_names()
         amr_out_file.write(graph.amr_graph_str(graph.root_index, 1) + '\n\n')
+    
+    if compute_statistics:
+      print("Partially overlapping nodes %.2f" %
+              (num_overlapping_nodes/num_nodes)) 
+      print("Phrasal nodes %.4f" %
+              (num_phrasal_nodes/num_nodes)) 
+
+      print("Spans vs nodes %.4f" %
+              (num_spans/num_nodes)) 
+      print("Multi Spans %.4f" %
+              (num_multi_spans/num_spans)) 
+
+      num_surface = surface1 + surface2 + surfacem
+      num_abstract = abstract1 + abstract2 + abstractm 
+      total_preds = num_surface + num_abstract
+      print("Abstract predicates: %.4f" % (num_abstract/total_preds))
+      print("Surface predicates: %.4f" % (num_surface/total_preds))
+      print("Abstract span 1: %.4f" % (abstract1/num_abstract))
+      print("Abstract span 2: %.4f" % (abstract2/num_abstract))
+      print("Abstract span 5: %.4f" % (abstract5/num_abstract))
+      print("Abstract span 10: %.4f" % (abstract10/num_abstract))
+      print("Abstract span 20: %.4f" % (abstract20/num_abstract))
+      print("Abstract span m: %.4f" % (abstractm/num_abstract))
+      print("Surface span 1: %.4f" % (surface1/num_surface))
+      print("Surface span 2: %.4f" % (surface2/num_surface))
+      print("Surface span 3: %.4f" % (surfacem/num_surface))
+
+      print("Outside phrases: %.4f" % (num_outside_phrases/num_phrase_phrase_edges))
+      print("Inside phrases: %.4f" % (num_inside_phrases/num_phrase_phrase_edges)) 
+      print("Anchored phrases: %.4f" % (num_anchored_phrases/num_phrase_phrase_edges))
+      print("Phrase phrase vs phrase edges: %.4f" % (num_phrase_phrase_edges/num_phrase_edges))
+      print("Phrase phrase vs all edges: %.4f" % (num_phrase_phrase_edges/num_edges))
+      print("Phrase edges vs all edges: %.4f" % (num_phrase_edges/num_edges))
+      print("Word phrase vs all edges: %.4f" % (num_word_phrase_edges/num_edges))
+      print("Word anchored phrases: %.4f" % (num_word_anchored_edges/num_word_phrase_edges))
+      print("Self edges: %.4f" % (num_self_edges/num_edges))
 

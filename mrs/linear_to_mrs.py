@@ -225,13 +225,13 @@ def linear_to_mrs(base_path, data_path, mrs_path, set_name, convert_train,
         edm_out_file.write(str_enc + '\n')
     edm_out_file.close()
 
-    epe_out_file = open(mrs_path + '.epe', 'w')
+    epe_out_file = open(mrs_path + '.json', 'w')
     offset = 0
     for i, graph in enumerate(graphs):
       if is_epe:
         offset = offsets[i]
       if not (graph is None or len(graph.nodes) == 0):
-        epe_out_file.write((graph.epe_str(i, sentences_unstripped[i], offset) + '\n').encode('utf-8', 'replace'))
+        epe_out_file.write((graph.json_str(i, sentences_unstripped[i], offset) + '\n').encode('utf-8', 'replace'))
       if not is_epe:
         offset += len(sentences_unstripped[i])
     epe_out_file.close()    
@@ -253,7 +253,7 @@ def linear_to_mrs(base_path, data_path, mrs_path, set_name, convert_train,
             filename = ('epe-results/' + domain + '/' + type_map[set_name] 
                          + '/' + file_id + '.epe')
             out_file = open(filename, 'w')
-          enc_str = (graph.epe_str(file_i, sentences_unstripped[i], offset) + '\n').encode('utf-8', 'replace')
+          enc_str = (graph.json_str(file_i, sentences_unstripped[i], offset) + '\n').encode('utf-8', 'replace')
           out_file.write(enc_str)
 
   # Writes out AMR for Smatch evaluation.
@@ -362,7 +362,8 @@ if __name__=='__main__':
   is_epe = '-epe' in sys.argv[5:]
   recover_end_spans = False
 
-  amr_dir = data_name + '-working/'
+  amr_dir = data_name + '/' #TODO temp
+  #amr_dir = data_name + '-working/'
   if is_epe:
     domain = data_name[4:]
   else:

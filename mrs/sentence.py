@@ -15,7 +15,8 @@
 
 import re
 import util
-from nltk.corpus import wordnet as wn
+import json
+#from nltk.corpus import wordnet as wn #TODO temp disable
 
 import util as mrs_util
 
@@ -24,6 +25,7 @@ class Token():
       ne_tag, normalized_ne_tag, edge = -1, relation = '', timex_attr = dict(),
       char_start=-1, char_end=-1):
     self.word = word
+    self.lemma = word
     self.original_word = original_word
     if ne_tag == '':
       self.pred_lexeme = original_word.lower() + u'/' + pos.lower()
@@ -318,6 +320,40 @@ class Sentence():
     else:
       words = [token.word for token in self.sentence]
     return ' '.join(words) + '\n'
+
+
+  def json_sentence_str(self, sent_id):
+    s = {"id": sent_id+1}
+    token_list = []
+    for i, token in enumerate(self.sentence):
+      token_s = {"id": i+1}
+      token_s["start"] = token.char_start
+      token_s["end"] = token.char_end # TODO pred/const spans
+      token_props = {}
+
+      token_props["word"] = token.original_word
+      token_props["lemma"] = token.lemma
+      token_props["POS"] = token.pos
+      if token.is_pred:
+        token_props["erg_predicate"] = True 
+      if token.pred_char_end != token.char_end:
+        token_s["predicate_end"] = token.pred_char_end
+
+      if token.ne_tag != "":
+        token_props["NE"] = token.ne_tag
+        if (token.const_lexeme != token.original_word 
+            and (token.const_lexeme + ".") != token.original_word):
+          token_props["constant"] = token.const_lexeme
+        if token.const_char_end != token.char_end:
+          # by default use predicate end
+          if token.const_char_end != token.pred_char_end:
+            token_s["constant_end"] = token.const_char_end
+
+      token_s["properties"] = token_props
+      token_list.append(token_s)
+    s["tokens"] = token_list
+    return json.dumps(s, sort_keys=True)
+
 
   def const_variable_sentence(self, varnames=[]):
     var_sent = []

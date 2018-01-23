@@ -15,6 +15,7 @@
 
 import re 
 import string
+import json
 
 def strip_unknown_concept(s):
   if s[0] == '_' and '/' in s and '_u_unknown' in s:
@@ -49,6 +50,8 @@ class MrsNode():
     self.alignment = alignment
     self.alignment_end = alignment_end
     self.is_aligned = False
+    self.ne = None
+    self.pos = None
     self.ind = ''
     self.constant = ''
     self.pred_type = ''
@@ -208,6 +211,143 @@ class MrsGraph():
         inds.append(self.nodes[j].spanned_max_alignment)
     self.nodes[i].spanned_min_alignment = min(inds)
     self.nodes[i].spanned_max_alignment = max(inds)
+
+
+  def num_phrasal_nodes(self):
+    count = 0
+    for i, node_a in enumerate(self.nodes):
+      if node_a.alignment_end >= node_a.alignment + 1: # orginally 2
+        count += 1
+    return count
+
+  def num_self_edges(self):
+    # consider phrase to phrase edges
+    edge_count = 0
+   
+    for i, node_a in enumerate(self.nodes):
+      for k, child_index in enumerate(node_a.edges):
+        node_b = self.nodes[child_index]
+        if node_a.alignment == node_b.alignment and node_a.alignment_end == node_b.alignment_end:
+          edge_count += 1
+
+    return edge_count
+ 
+
+  def num_word_phrase_spans(self):
+    # consider phrase to phrase edges
+    edge_count = 0
+    anchored_count = 0
+    total_edge_count = 0
+   
+    for i, node_a in enumerate(self.nodes):
+      total_edge_count += len(node_a.edges)
+      if node_a.alignment_end == node_a.alignment:
+        for k, child_index in enumerate(node_a.edges):
+          node_b = self.nodes[child_index]
+          if node_b.alignment_end >= node_b.alignment + 2:
+            edge_count += 1
+            if (node_b.alignment == node_a.alignment 
+                or node_b.alignment_end == node_a.alignment_end):
+              anchored_count += 1
+ 
+    return edge_count, anchored_count, total_edge_count
+
+
+  def num_phrase_phrase_spans(self):
+    # consider phrase to phrase edges
+    outside_count = 0
+    anchored_count = 0
+    inside_count = 0
+    edge_count = 0
+    all_edge_count = 0
+    total_edge_count = 0
+
+    for i, node_a in enumerate(self.nodes):
+      total_edge_count += len(node_a.edges)
+      if node_a.alignment_end >= node_a.alignment + 1:
+        for k, child_index in enumerate(node_a.edges):
+            all_edge_count += 1
+            node_b = self.nodes[child_index]
+            if node_b.alignment_end >= node_b.alignment + 1:
+              edge_count += 1
+              if (node_b.alignment_end < node_a.alignment 
+                  or node_b.alignment > node_a.alignment_end):
+                outside_count += 2
+              elif (node_b.alignment == node_a.alignment 
+                    or node_b.alignment_end == node_a.alignment_end):
+                anchored_count += 1
+              else:
+                inside_count += 1
+                #print node_a.alignment, node_a.alignment_end, node_b.alignment, node_b.alignment_end
+ 
+    return outside_count, anchored_count, inside_count, edge_count, all_edge_count, total_edge_count
+
+
+  def num_predicate_types(self):
+    surface1 = 0
+    surface2 = 0
+    surfacem = 0
+    abstract1 = 0
+    abstract2 = 0
+    abstract5 = 0
+    abstract10 = 0
+    abstract20 = 0
+    abstractm = 0
+
+    for i, node_a in enumerate(self.nodes):
+      if node_a.concept[0] == '_':
+        if node_a.alignment == node_a.alignment_end:
+          surface1 += 1
+        elif node_a.alignment + 1 == node_a.alignment_end:
+          surface2 += 1
+          #print node_a.concept
+        else:  
+          surfacem += 1
+      else:
+        if node_a.alignment == node_a.alignment_end:
+          abstract1 += 1
+        elif node_a.alignment + 1 == node_a.alignment_end:
+          abstract2 += 1
+        else:  
+          abstractm += 1
+          if node_a.alignment + 4 <= node_a.alignment_end:
+            abstract5 += 1
+          if node_a.alignment + 9 <= node_a.alignment_end:
+            abstract10 += 1
+          if node_a.alignment + 19 <= node_a.alignment_end:
+            abstract20 += 1
+
+    return surface1, surface2, surfacem, abstract1, abstract2, abstract5, abstract10, abstract20, abstractm
+
+
+  def num_unaries(self):
+    ind_map = {} #TODO self-edges
+    for i, node_a in enumerate(self.nodes):
+      ind = str(node_a.alignment) + ':' + str(node_a.alignment_end)
+      if ind_map.has_key(ind):
+        ind_map[ind] += 1
+      else:
+        ind_map[ind] = 1
+    multi_spans = 0
+    for s in ind_map.iterkeys():
+      if ind_map[s] > 1:
+        multi_spans += 1
+
+    return multi_spans, len(ind_map) #len(self.nodes)
+  
+  def num_overlapping_nodes(self):
+    count = 0
+    for i, node_a in enumerate(self.nodes):
+      for j in range(i+1, len(self.nodes)):
+        node_b = self.nodes[j]
+        if node_a.alignment < node_b.alignment:
+          if node_b.alignment_end > node_a.alignment_end and node_a.alignment_end > node_b.alignment:
+            count += 1
+        elif node_a.alignment > node_b.alignment:
+          if node_a.alignment_end > node_b.alignment_end and node_b.alignment_end > node_a.alignment:
+            count += 1
+    return count
+
 
   def find_span_edge_directions(self):
     for i in xrange(len(self.nodes)):
@@ -1721,6 +1861,244 @@ class MrsGraph():
           property_triple = node.ind + ' ' + attribute + ' ' + value
           s += property_triple + ' ; '
     return s
+
+
+  def verify_undirected_edges(self, graph_id):
+    und_edges = {}
+    und_heads = [-1 for _ in self.nodes] # don't need to use this
+    for i, node in enumerate(self.nodes):
+      for k, child_index in enumerate(node.edges): 
+        label = node.relations[k]
+        if label == "/EQ/U": # verified as always together
+          # reverse if child has more (directed) heads than parent
+          # nodes should have at most one undirected head
+          if len(node.heads) < (len(self.nodes[child_index].heads) - 1):
+            if und_heads[i] != -1: # asserted
+              print("multiple undirected heads")
+            print("reversed")
+            und_heads[i] = child_index # head
+            if und_edges.has_key(child_index):
+              und_edges[child_index].append(i) 
+            else:
+              und_edges[child_index] = [i] 
+          else:
+            if und_heads[child_index] != -1:
+              print("multiple undirected heads")
+            und_heads[child_index] = i # head
+            if und_edges.has_key(i):
+              und_edges[i].append(child_index) 
+            else:
+              und_edges[i] = [child_index]
+    if len(und_edges) > 0:
+      print und_edges
+
+
+  def json_parse_str(self, graph_id, include_features=True):
+    s = {"id": graph_id+1}
+    node_list = []
+    for i, node in enumerate(self.nodes):
+      #if not self.spanned[i]: # unconnected nodes included for now
+        #continue
+      concept = node.concept
+      if concept.endswith('_rel'):
+        concept = concept[:-4]
+      node_s = {"id": i+1}
+      node_s["start"] = node.alignment + 1 # start indexing at 1
+      node_s["end"] = node.alignment_end + 1
+      if i == self.root_index:
+        node_s["top"] = True
+      prop_s = {}
+      if concept[0] == '_':
+        # Properties for surface predicates.
+        if '/' in concept[1:] and 'u_unknown' in concept[1:]:
+          # u and unknown verified to be paired
+          split_ind = concept.index('/', 1)
+          cross_ind = concept.index('_', 1)
+          #prop_s["type"] = "surface"
+          prop_s["predicate"] =  "u_unknown"
+        elif '_' in concept[1:]:  
+          split_ind = concept.index('_', 1)
+          sense = concept[split_ind+1:]
+          #prop_s["type"] = "surface"
+          prop_s["predicate"] = sense
+        else:
+          #prop_s["type"] = "surface" # but no lemma
+          prop_s["predicate"] = concept[1:]
+          print("no lemma: %s" % concept)
+      else:
+        prop_s["predicate"] = concept
+        #if node.constant: # Deterministic in post-processing
+        #  prop_s["type"] = "constant"
+        #prop_s["type"] = "abstract"
+        prop_s["abstract"] = True
+      prop_s["type"] = node.pred_type
+
+      if include_features:
+        feature_str = ''
+        for feature in node.features:
+          #attribute, value = feature.split('=')[0], feature.split('=')[1]
+          #prop_s[attribute] = value
+          feature_str += feature + '|'
+        if feature_str != '':
+          prop_s["features"] = feature_str[:-1]
+
+      node_s["properties"] = prop_s
+
+      edge_list = []
+      for k, child_index in enumerate(node.edges): 
+        label = node.relations[k]
+        if label == "/EQ/U":
+          label = "/EQ"
+        edge_s = {"label": label}
+        edge_s["target"] = child_index + 1
+        edge_list.append(edge_s)
+      if edge_list:
+        node_s["edges"] = edge_list
+
+      node_list.append(node_s)
+    
+    s["nodes"] = node_list
+    return json.dumps(s, sort_keys=True)
+
+
+  def json_orig_parse_str(self, graph_id, include_features=True):
+    s = {"id": graph_id+1}
+    node_list = []
+    for i, node in enumerate(self.nodes):
+      concept = node.concept
+      if concept.endswith('_rel'):
+        concept = concept[:-4]
+      node_s = {"id": i+1}
+      start_ind = int(node.ind.split(':')[0])
+      end_ind = int(node.ind.split(':')[1])
+
+      node_s["start"] = start_ind
+      node_s["end"] = end_ind
+      if i == self.root_index:
+        node_s["top"] = True
+      prop_s = {}
+      prop_s["predicate"] = concept
+
+      if node.constant:  
+        if node.constant[0] == '"' and node.constant[-1] == '"':
+          const = node.constant[1:-1]
+        else:
+          const = node.constant
+        prop_s["constant"] = const
+
+      if include_features:
+        prop_s["type"] = node.pred_type
+        feature_str = ''
+        for feature in node.features:
+          #attribute, value = feature.split('=')[0], feature.split('=')[1]
+          #prop_s[attribute] = value
+          feature_str += feature + '|'
+        if feature_str != '':
+          prop_s["features"] = feature_str[:-1]
+
+      node_s["properties"] = prop_s
+
+      edge_list = []
+      for k, child_index in enumerate(node.edges): 
+        label = node.relations[k]
+        if label == "/EQ/U":
+          label = "/EQ"
+        edge_s = {"label": label}
+        edge_s["target"] = child_index + 1
+        edge_list.append(edge_s)
+      if edge_list:
+        node_s["edges"] = edge_list
+
+      node_list.append(node_s)
+    
+    s["nodes"] = node_list
+    return json.dumps(s, sort_keys=True)
+
+
+  def json_str(self, graph_id, surface, offset=0):
+    include_features = False
+    s = {"id": graph_id+1}
+    node_list = []
+    for i, node in enumerate(self.nodes):
+      concept = node.concept
+      if concept.endswith('_rel'):
+        concept = concept[:-4]
+      node_s = {"id": i+1}
+      start_ind = int(node.ind.split(':')[0])
+      end_ind = int(node.ind.split(':')[1])
+
+      node_s["form"] = surface[start_ind:end_ind]
+      node_s["start"] = start_ind + offset
+      node_s["end"] = end_ind + offset
+      if i == self.root_index:
+        node_s["top"] = True
+      prop_s = {}
+      if concept[0] == '_':
+        # Properties for surface predicates.
+        if '/' in concept[1:] and 'unknown' in concept[1:]:
+          split_ind = concept.index('/', 1)
+          cross_ind = concept.index('_', 1)
+          word = concept[1:split_ind]
+          pos = concept[split_ind+1:cross_ind]
+          if '_unknown' in concept:
+            sense = concept[cross_ind+1:concept.index('_unknown')]
+          else:
+            sense = concept[cross_ind+1]
+          prop_s["type"] = "unknown"
+          prop_s["predicate"] = sense
+          prop_s["lemma"] = word
+        elif '_' in concept[1:]:  
+          split_ind = concept.index('_', 1)
+          lemma = concept[1:split_ind]
+          sense = concept[split_ind+1:]
+          prop_s["type"] = "surface"
+          prop_s["predicate"] = sense
+          prop_s["lemma"] = lemma
+        else:
+          prop_s["type"] = "surface" # but no lemma
+          prop_s["predicate"] = concept[1:]
+        if node.pos is not None:
+          pos = node.pos[1:] if node.pos[0] == '_' else node.pos
+          prop_s["pos"] = pos
+        if node.ne is not None:
+          ne = node.ne[:node.ne.index('_C')] if '_C' in node.ne else node.ne
+          if ne <> 'O':
+            prop_s["ner"] = ne
+      else:
+        prop_s["predicate"] = concept
+        if node.constant:  
+          prop_s["type"] = "constant"
+          if node.constant[0] == '"' and node.constant[-1] == '"':
+            const = node.constant
+          else:  
+            const = '"' + node.constant + '"'
+          prop_s["lemma"] = const
+          if node.ne is not None:
+            ne = node.ne[:node.ne.index('_C')] if '_C' in node.ne else node.ne
+            prop_s["ner"] = ne
+        else:
+          prop_s["type"] = "abstract"
+
+      if include_features:
+        for feature in node.features:
+          attribute, value = feature.split('=')[0], feature.split('=')[1]
+          prop_s[attribute] = value
+
+      node_s["properties"] = prop_s
+
+      edge_list = []
+      for k, child_index in enumerate(node.edges): 
+        edge_s = {"label": node.relations[k]}
+        edge_s["target"] = child_index + 1
+        edge_list.append(edge_s)
+      if edge_list:
+        node_s["edges"] = edge_list
+
+      node_list.append(node_s)
+    
+    s["nodes"] = node_list
+    return json.dumps(s, sort_keys=True)
+
 
   def epe_str(self, graph_id, surface, offset=0):
     include_features = False

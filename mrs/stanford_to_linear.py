@@ -373,10 +373,12 @@ def process_stanford(input_dir, working_dir, erg_dir, set_name,
          file_id))
   else:
     suffix = '.raw'
+    stnf_path = input_dir + set_name + suffix + '.out'
+    #stnf_path = working_dir + set_name + suffix + '.out'
     if normalize_ne:
-      sentences = read_sentences_normalize_ne((working_dir + set_name + suffix + '.out'))
+      sentences = read_sentences_normalize_ne(stnf_path)
     else:
-      sentences = read_sentences((working_dir + set_name + suffix + '.out'), '0')
+      sentences = read_sentences(stnf_path, '0')
 
   max_token_span_length = 5
   for i, sent in enumerate(sentences):
@@ -429,6 +431,7 @@ def process_stanford(input_dir, working_dir, erg_dir, set_name,
         lexeme = '_' + token.word # lemma
       if lexeme <> '':
         sentences[i].sentence[j].pred_lexeme = lexeme
+        sentences[i].sentence[j].lemma = lexeme[1:]
 
       # Matches multi-token expressions.
       orth = token.original_word
@@ -503,10 +506,11 @@ if __name__=='__main__':
     span_output_file = open(working_dir + set_name + '.span', 'w')
     pred_span_output_file = open(working_dir + set_name + '.span.pred', 'w')
     const_span_output_file = open(working_dir + set_name + '.span.const', 'w')
+    sent_json_output_file = open(working_dir + set_name + '.tok.json', 'w')
     if normalize_ne:
       nom_output_file = open(working_dir + set_name + '.lex.nom', 'w')
 
-    for sent in sentences:
+    for i, sent in enumerate(sentences):
       out_str = sent.original_sentence_str()
       sent_output_file.write(out_str.encode('utf-8', 'replace'))
       if normalize_ne:
@@ -522,6 +526,7 @@ if __name__=='__main__':
       const_output_file.write(lex_enc)
       lex_str = sent.wiki_lexeme_str()
       lex_enc = lex_str.encode('utf-8', 'replace')
+
       sent_offsets_file.write(str(sent.offset) + '\n')
       sent_ids_file.write(str(sent.file_id) + '\n')
       txt_enc = sent.raw_txt.encode('utf-8', 'replace')
@@ -532,4 +537,6 @@ if __name__=='__main__':
       span_output_file.write(sent.ch_span_str())
       const_span_output_file.write(sent.const_ch_span_str())
       pred_span_output_file.write(sent.pred_ch_span_str())
+
+      sent_json_output_file.write((sent.json_sentence_str(i) + '\n').encode('utf-8', 'replace'))
 
