@@ -225,13 +225,13 @@ def linear_to_mrs(base_path, data_path, mrs_path, set_name, convert_train,
         edm_out_file.write(str_enc + '\n')
     edm_out_file.close()
 
-    epe_out_file = open(mrs_path + '.json', 'w')
+    epe_out_file = open(mrs_path + '.dmrs.json', 'w')
     offset = 0
     for i, graph in enumerate(graphs):
       if is_epe:
         offset = offsets[i]
       if not (graph is None or len(graph.nodes) == 0):
-        epe_out_file.write((graph.json_str(i, sentences_unstripped[i], offset) + '\n').encode('utf-8', 'replace'))
+        epe_out_file.write((graph.json_parse_str(i) + '\n').encode('utf-8', 'replace'))
       if not is_epe:
         offset += len(sentences_unstripped[i])
     epe_out_file.close()    

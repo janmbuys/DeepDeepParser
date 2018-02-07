@@ -231,6 +231,38 @@ class Sentence():
       sentence.append(token)
     return cls(sentence)
 
+  @classmethod
+  def parse_json_line(cls, json_line):
+    toks = json.loads(json_line)
+    tokens = []
+    tokens_index = {}
+    sent_id = toks["id"]
+    
+    # Construct tokens
+    for tok in toks["tokens"]:
+      assert (tok["id"] - 1) == len(tokens)
+      props = tok["properties"]
+      
+      ne_tag = props["NE"] if props.has_key("NE") else ''
+      token = Token(props["lemma"], props["word"], props["POS"], '',  
+                    props.has_key("NE"), False, '', '', char_start=tok["start"],
+                    char_end=tok["end"])
+      if tok.has_key("predicate_end"):
+        token.pred_char_end = tok["predicate_end"]
+      if tok.has_key("constant_end"):
+        token.const_char_end = tok["constant_end"]
+      if props.has_key("constant"):
+        token.is_const = True
+        token.const_lexeme = props["constant"]
+      elif props["word"].endswith("."):
+        token.const_lexeme = props["word"][:-1]
+
+      if props.has_key("erg_predicate") and props["erg_predicate"]:
+        token.is_pred = True 
+
+      tokens.append(token)
+    return cls(tokens, sent_ind=sent_id)
+
   def original_sentence_str(self):
     words = [token.original_word for token in self.sentence]
     return ' '.join(words) + '\n'

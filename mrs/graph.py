@@ -88,10 +88,97 @@ class MrsNode():
     self.relations.append(relation)
 
 class MrsGraph():
-  def __init__(self, nodes):
+  def __init__(self, nodes, root_index=-1, parse_ind=-1):
     self.nodes = nodes
-    self.root_index = -1
+    self.root_index = root_index
+    self.parse_ind = parse_ind
     self.spanned = [False for _ in nodes]
+
+  @classmethod
+  def parse_orig_json_line(cls, json_line):
+    mrs = json.loads(json_line)
+    parse_id = mrs["id"] # need to return to ensure correct alignment 
+    nodes = []
+    top_ind = -1
+    nodes_index = {}
+
+    # First parse nodes
+    for node in mrs["nodes"]:
+      node_id = node["id"] - 1
+      props = node["properties"] 
+      if node.has_key("top") and node["top"]:
+        top_ind = node_id 
+      concept = props["predicate"]
+      graph_node = MrsNode(str(node_id), concept)
+
+      start_ind = node["start"]
+      end_ind = node["end"]
+      graph_node.ind = str(start_ind) + ":" + str(end_ind)
+      if props.has_key("constant"):
+        const = props["constant"]
+        if const[0] != '"':
+          const = '"' + const
+        if const[-1] != '"':
+          const = const + '"' 
+        graph_node.constant = const
+
+      nodes_index[node_id] = len(nodes)
+      # ignore features for now
+
+      nodes.append(graph_node)
+    # Then add edges 
+    for node in mrs["nodes"]:
+      parent_ind = nodes_index[node["id"] - 1]
+      if node.has_key("edges"):
+        for edge in node["edges"]:
+          child_ind = nodes_index[edge["target"] - 1]
+          label = edge["label"]
+          if label == "/EQ":
+            label = "/EQ/U"
+          nodes[parent_ind].append_edge(child_ind, label)
+          nodes[child_ind].heads.append(parent_ind)
+
+    return cls(nodes, top_ind, parse_id)
+
+
+  @classmethod
+  def parse_json_line(cls, json_line):
+    mrs = json.loads(json_line)
+    parse_id = mrs["id"] # need to return to ensure correct alignment 
+    nodes = []
+    top_ind = -1
+    nodes_index = {}
+
+    # First parse nodes
+    for node in mrs["nodes"]:
+      node_id = node["id"] - 1
+      props = node["properties"] 
+      if node.has_key("top") and node["top"]:
+        top_ind = node_id 
+      if props.has_key("abstract") and props["abstract"]:
+        concept = props["predicate"]
+      else:
+        concept = '_' + props["predicate"]
+
+      graph_node = MrsNode(str(node_id), concept, node["start"]-1, node["end"]-1)
+      nodes_index[node_id] = len(nodes)
+      # ignore features for now
+
+      nodes.append(graph_node)
+    # Then add edges 
+    for node in mrs["nodes"]:
+      parent_ind = nodes_index[node["id"] - 1]
+      if node.has_key("edges"):
+        for edge in node["edges"]:
+          child_ind = nodes_index[edge["target"] - 1]
+          label = edge["label"]
+          if label == "/EQ":
+            label = "/EQ/U"
+          nodes[parent_ind].append_edge(child_ind, label)
+          nodes[child_ind].heads.append(parent_ind)
+
+    return cls(nodes, top_ind, parse_id)
+
 
   def correct_node_names(self):
     for j, node in enumerate(self.nodes):

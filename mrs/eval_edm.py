@@ -124,6 +124,11 @@ def compute_f1(gold_set, predicted_set, inref, verbose=False,
     correct_triples = triples1.intersection(triples2)
     incorrect_predicted = triples2 - correct_triples
     missed_predicted = triples1 - correct_triples
+    if only_predicates:
+      if incorrect_predicted:
+        print "incorrect:", incorrect_predicted
+      if missed_predicted:
+        print "missed:", missed_predicted
 
     total_gold += len(triples1)
     total_predicted += len(triples2)
@@ -155,23 +160,23 @@ if __name__=='__main__':
   verbose = len(sys.argv) >= 4 and sys.argv[3] == "-verbose"
 
   print 'All'
-  compute_f1(in1, in2, inref, verbose)
+  compute_f1(in1, in2, inref, verbose, no_cargs=no_cargs)
 
   print 'All, start spans only'
-  compute_f1(in1, in2, inref, verbose, span_starts_only=True)
+  compute_f1(in1, in2, inref, verbose, span_starts_only=True, no_cargs=no_cargs)
 
   print 'All, predicates only'
-  compute_f1(in1, in2, inref, verbose, only_predicates=True)
+  compute_f1(in1, in2, inref, verbose, no_cargs=no_cargs, only_predicates=True)
 
   print 'All, predicates only, start spans only'
-  compute_f1(in1, in2, inref, verbose, span_starts_only=True, only_predicates=True)
+  compute_f1(in1, in2, inref, verbose, span_starts_only=True, no_cargs=no_cargs, only_predicates=True)
 
   print 'All, predicates only - without spans'
-  compute_f1(in1, in2, inref, verbose, only_predicates=True, predicates_no_span=True)
+  compute_f1(in1, in2, inref, verbose, no_cargs=no_cargs, only_predicates=True, predicates_no_span=True)
 
   print 'All, relations only'
-  compute_f1(in1, in2, inref, verbose, no_predicates=True)
+  compute_f1(in1, in2, inref, verbose, no_cargs=no_cargs, no_predicates=True)
 
   print 'All, relations only, start spans only'
-  compute_f1(in1, in2, inref, verbose, span_starts_only=True, no_predicates=True)
+  compute_f1(in1, in2, inref, verbose, span_starts_only=True, no_cargs=no_cargs, no_predicates=True)
 
