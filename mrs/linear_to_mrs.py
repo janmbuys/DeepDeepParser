@@ -231,7 +231,7 @@ def linear_to_mrs(base_path, data_path, mrs_path, set_name, convert_train,
       if is_epe:
         offset = offsets[i]
       if not (graph is None or len(graph.nodes) == 0):
-        epe_out_file.write((graph.json_parse_str(i) + '\n').encode('utf-8', 'replace'))
+        epe_out_file.write((graph.json_parse_str(i, False) + '\n').encode('utf-8', 'replace'))
       if not is_epe:
         offset += len(sentences_unstripped[i])
     epe_out_file.close()    

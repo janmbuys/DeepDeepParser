@@ -2018,9 +2018,9 @@ class MrsGraph():
         #  prop_s["type"] = "constant"
         #prop_s["type"] = "abstract"
         prop_s["abstract"] = True
-      prop_s["type"] = node.pred_type
 
       if include_features:
+        prop_s["type"] = node.pred_type
         feature_str = ''
         for feature in node.features:
           #attribute, value = feature.split('=')[0], feature.split('=')[1]

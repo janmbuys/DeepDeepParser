@@ -20,8 +20,10 @@ import sys
 def strip_span_ends(triple):
   ts = triple.split(' ')
   ts[0] = ts[0].split(':')[0]
+  ts[0] = ts[0] + ':' + ts[0]
   if len(ts) >= 3 and ':' in ts[2]:
     ts[2] = ts[2].split(':')[0]
+    ts[2] = ts[2] + ':' + ts[2]
   return ' '.join(ts)
 
 def list_predicate_spans(triples):
@@ -29,7 +31,7 @@ def list_predicate_spans(triples):
   for triple in triples:
     if len(triple.split(' ')) > 1 and triple.split(' ')[1] == 'NAME':
       spans.append(triple.split(' ')[0])  
-  return spans
+  return list(set(spans))
 
 def inc_end_spans(spans):
   new_spans = [span.split(':')[0] + ':' + str(int(span.split(':')[1])+1)
@@ -73,6 +75,8 @@ def compute_f1(gold_set, predicted_set, inref, verbose=False,
         if old_span not in gold_spans and new_span in gold_spans:
           for j, triple in enumerate(triples2):
             triples2[j] = triple.replace(old_span, new_span)
+            #if old_span in triple and 'NAME' not in triple:
+            #  print("%s -> %s" % (triple, triples2[j]))
 
     replace_new_spans(inc_end_spans(predicted_spans))
     replace_new_spans(dec_end_spans(predicted_spans))
@@ -95,6 +99,10 @@ def compute_f1(gold_set, predicted_set, inref, verbose=False,
       triples1 = filter(lambda x: (x.split(' ')[1] <> 'NAME' 
           and x.split(' ')[1] <> 'CARG' if len(x.split(' ')) > 2 else False), 
           triples1)
+
+    #if span_starts_only and no_predicates:
+    #  for tri in triples1:
+    #    print(tri)
     triples1 = set(triples1)
     if line2.strip() == 'NONE':
       if exclude_nones:
@@ -119,16 +127,18 @@ def compute_f1(gold_set, predicted_set, inref, verbose=False,
         triples2 = filter(lambda x: (x.split(' ')[1] <> 'NAME' 
             and x.split(' ')[1] <> 'CARG' if len(x.split(' ')) > 2 else False), 
             triples2)
+
       triples2 = set(triples2)
+
 
     correct_triples = triples1.intersection(triples2)
     incorrect_predicted = triples2 - correct_triples
     missed_predicted = triples1 - correct_triples
-    if only_predicates:
-      if incorrect_predicted:
-        print "incorrect:", incorrect_predicted
-      if missed_predicted:
-        print "missed:", missed_predicted
+    #if only_predicates:
+    #  if incorrect_predicted:
+    #    print "incorrect:", incorrect_predicted
+    #  if missed_predicted:
+    #    print "missed:", missed_predicted
 
     total_gold += len(triples1)
     total_predicted += len(triples2)
@@ -137,6 +147,11 @@ def compute_f1(gold_set, predicted_set, inref, verbose=False,
   if total_predicted == 0 or total_gold == 0:
     print "F1: 0.0"
     return
+  
+  #print(total_correct)
+  #print(total_predicted)
+  #print(total_gold)
+
   precision = total_correct/total_predicted
   recall = total_correct/total_gold
   f1 = 2*precision*recall/(precision+recall)
@@ -179,4 +194,5 @@ if __name__=='__main__':
 
   print 'All, relations only, start spans only'
   compute_f1(in1, in2, inref, verbose, span_starts_only=True, no_cargs=no_cargs, no_predicates=True)
+
 

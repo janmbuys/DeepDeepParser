@@ -95,6 +95,10 @@ if __name__=='__main__':
     gold_graphs.append(graph)
 
   # write out
+  system_orig_dmrs_file = open(working_dir + set_name + '.dmrs.orig.json', 'w')
+  for i, graph in enumerate(graphs):
+    system_orig_dmrs_file.write((graph.json_orig_parse_str(i, False) + '\n').encode('utf-8', 'replace'))
+
   system_edm_out_file = open(working_dir + set_name + '.dmrs.edm', 'w')
   for graph in graphs:
     system_edm_out_file.write(graph.edm_ch_str(True) + '\n')
