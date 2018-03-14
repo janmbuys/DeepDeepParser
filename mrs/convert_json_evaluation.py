@@ -73,10 +73,8 @@ if __name__=='__main__':
         if (node.concept != '_u_unknown' and token.pos == '-LRB-'
               and node.alignment + 1 < len(sent.sentence)):
           token = sent.sentence[node.alignment + 1]
-        #if node.concept != '_u_unknown': 
-        if token.is_pred: # 0.01% lower than "gold" unknown 
+        if token.is_pred:
           node.concept = '_' + token.lemma + node.concept
-          #end_ind = token.pred_char_end
         else:  
           node.concept = ('_' + token.original_word.lower() + '/' 
                           + token.pos.lower() + '_u_unknown')

@@ -1,22 +1,13 @@
-# Copyright 2018 Jan Buys.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
-
 """Computes EDM F1 scores."""
 
 import argparse
 import json
+
+def is_const_predicate(concept):
+  const_set = set(["named", "card", "named_n", "mofy", "yofc", "ord", 
+      "dofw", "dofm", "fraction", "season", "excl", "year_range", 
+      "numbered_hour", "holiday", "timezone_p", "polite"])
+  return concept in const_set
 
 def list_predicate_spans(triples):
   spans = []
@@ -47,12 +38,66 @@ def dec_end_spans(spans):
   return new_spans
 
 
+class Token():
+  def __init__(self, lemma, word, pos, is_ne, ne_tag, 
+               char_start=-1, char_end=-1):
+    self.lemma = lemma
+    self.word = word
+    self.pos = pos
+    self.is_ne = is_ne
+    self.ne_tag = ne_tag
+    self.char_start = char_start
+    self.char_end = char_end
+    self.const_lexeme = word 
+    self.is_const = False
+    self.is_pred = False
+ 
+
+class Sentence():
+  def __init__(self, sentence, sent_id=0):
+    self.sentence = sentence # tokens
+    self.sent_id = sent_id
+
+  def word_at(self, i):
+    return self.sentence[i].word
+
+  @classmethod
+  def parse_json_line(cls, json_line):
+    toks = json.loads(json_line)
+    tokens = []
+    tokens_index = {}
+    sent_id = toks["id"]
+    
+    # Construct tokens.
+    for tok in toks["tokens"]:
+      assert (tok["id"] - 1) == len(tokens)
+      props = tok["properties"]
+      
+      is_ne = "NE" in props 
+      ne_tag = props["NE"] if is_ne else ''
+      token = Token(props["lemma"], props["word"], props["POS"],   
+                    is_ne, ne_tag, 
+                    char_start=tok["start"], char_end=tok["end"])
+      if "constant" in props:
+        token.is_const = True
+        token.const_lexeme = props["constant"]
+      elif props["word"].endswith("."):
+        token.const_lexeme = props["word"][:-1]
+      if "erg_predicate" in props and props["erg_predicate"]:
+        token.is_pred = True 
+
+      tokens.append(token)
+    return cls(tokens, sent_id)
+
+
 class MrsNode():
-  def __init__(self, name, concept, start, end):
+  def __init__(self, name, concept, start=-1, end=-1):
     self.name = name
     self.concept = concept
-    self.start = start
+    self.start = start # character start
     self.end = end
+    self.alignment = -1 # token start
+    self.alignment_end = -1
     self.constant = ""
     self.top = False
     self.edges = []
@@ -115,6 +160,41 @@ class MrsGraph():
 
     return cls(nodes, parse_id)
 
+  @classmethod
+  def parse_json_line(cls, json_line):
+    mrs = json.loads(json_line)
+    parse_id = mrs["id"] 
+    nodes = []
+    nodes_index = {}
+
+    # First parse nodes
+    for node in mrs["nodes"]:
+      node_id = node["id"] - 1
+      props = node["properties"] 
+      if "abstract" in props and props["abstract"]:
+        concept = props["predicate"]
+      else:
+        concept = '_' + props["predicate"]
+
+      graph_node = MrsNode(str(node_id), concept)
+      graph_node.alignment = node["start"] - 1
+      graph_node.alignment_end = node["end"] - 1
+      if "top" in node and node["top"]:
+        graph_node.top = True
+      nodes_index[node_id] = len(nodes)
+      nodes.append(graph_node)
+
+    # Then add edges 
+    for node in mrs["nodes"]:
+      parent_ind = nodes_index[node["id"] - 1]
+      if "edges" in node:
+        for edge in node["edges"]:
+          child_ind = nodes_index[edge["target"] - 1]
+          label = edge["label"]
+          nodes[parent_ind].append_edge(child_ind, label)
+
+    return cls(nodes, parse_id)
+
   def predicate_bag(self, include_constants=True):
     bag = []
     for i, node in enumerate(self.nodes):
@@ -135,7 +215,7 @@ class MrsGraph():
   def relation_triples(self, include_span_ends=True, labeled=True):
     triples = []
 
-    for i, node in enumerate(self.nodes): # for order consistency
+    for i, node in enumerate(self.nodes):
       if node.top:
         node_ind = node.span_str(include_span_ends)
         triples.append("-1:-1 /H " + node_ind)
@@ -194,8 +274,6 @@ def compute_f1(gold_graphs, predicted_graphs, score_predicates,
         gold_triples = [] 
 
     # Magic to replace end spans off by 1.
-    #gold_spans = set(list_predicate_spans(gold_triples))
-    #predicted_spans = list_predicate_spans(predicted_triples)
     gold_spans = set(list_spans(gold_triples))
     predicted_spans = list_spans(predicted_triples)
 
@@ -204,16 +282,11 @@ def compute_f1(gold_graphs, predicted_graphs, score_predicates,
         old_span = predicted_spans[i]
         if old_span not in gold_spans and new_span in gold_spans:
           for j, triple in enumerate(predicted_triples):
-            predicted_triples[j] = triple.replace(old_span, new_span) # string replacement
-            #if old_span in triple and 'NAME' not in triple:
-            #  print("%s -> %s" % (triple, predicted_triples[j]))
+            # string replacement
+            predicted_triples[j] = triple.replace(old_span, new_span) 
                   
     replace_new_spans(inc_end_spans(predicted_spans))
     replace_new_spans(dec_end_spans(predicted_spans))
-
-    #if not score_predicates and not include_span_ends:
-    #  for tri in gold_triples:
-    #    print(tri)
 
     gold_triples = set(gold_triples)
     predicted_triples = set(predicted_triples)
@@ -234,9 +307,6 @@ def compute_f1(gold_graphs, predicted_graphs, score_predicates,
 
   assert total_predicted > 0 and total_gold > 0, "No correct predictions"
 
-  #print(total_correct)
-  #print(total_predicted)
-  #print(total_gold)
   precision = total_correct/total_predicted
   recall = total_correct/total_gold
   f1 = 2*precision*recall/(precision+recall)
@@ -270,9 +340,8 @@ if __name__=='__main__':
   parser.add_argument("--verbose", action="store_true")
   args = parser.parse_args()
 
-  assert args.orig #TODO implement conversion
   if not args.orig:
-    assert args.tokens and arg.text
+    assert args.toks and args.text
 
   include_constants = not args.exclude_constants
   labeled = not args.unlabeled
@@ -284,11 +353,55 @@ if __name__=='__main__':
       graph = MrsGraph.parse_orig_json_line(line.strip()) 
       gold_graphs[graph.parse_id] = graph
 
-  with open(args.system, 'r') as fs:
-    predicted_graphs = {}
-    for line in fs:
-      graph = MrsGraph.parse_orig_json_line(line.strip()) 
-      predicted_graphs[graph.parse_id] = graph
+  if args.orig:
+    with open(args.system, 'r') as fs:
+      predicted_graphs = {}
+      for line in fs:
+        graph = MrsGraph.parse_orig_json_line(line.strip()) 
+        predicted_graphs[graph.parse_id] = graph
+  else:
+    with open(args.text, 'r') as fx:
+      sentences_raw = [line.strip() for line in fx]
+
+    sentences = {}
+    with open(args.toks, 'r') as ft:
+      for line in ft:
+        sent = Sentence.parse_json_line(line.strip())
+        sentences[sent.sent_id] = sent
+
+    with open(args.system, 'r') as fs:
+      predicted_graphs = {}
+      for line in fs:
+        graph = MrsGraph.parse_json_line(line.strip()) 
+        sent = sentences[graph.parse_id]
+        raw_str = sentences_raw[sent.sent_id-1]
+        for node in graph.nodes:
+          token = sent.sentence[node.alignment]
+          # Convert to char-based spans.
+          node.start = token.char_start
+          node.end = sent.sentence[node.alignment_end].char_end
+          # Process constants.
+          if is_const_predicate(node.concept):           
+            if token.is_const:
+              constant = token.const_lexeme
+            else:  
+              constant = raw_str[node.start:node.end]
+              if ' ' in constant:
+                constant = constant[:constant.index(' ')]
+            if constant[0] != '"':
+              constant = '"' + constant
+            if constant[-1] == '"':
+              constant = constant[:-1]
+            if len(constant) > 1 and constant[-1] in '.,':
+              constant = constant[:-1]
+            node.constant = constant + '"'
+          elif node.concept.startswith("_"): 
+            if token.is_pred:
+              node.concept = '_' + token.lemma + node.concept
+            else:  
+              node.concept = ('_' + token.word.lower() + '/' 
+                              + token.pos.lower() + '_u_unknown')
+        predicted_graphs[graph.parse_id] = graph
 
   print("Full EDM")
   compute_f1(gold_graphs, predicted_graphs, True, True,
@@ -321,8 +434,8 @@ if __name__=='__main__':
             include_constants, include_predicate_spans=False,
             score_nones=score_nones, verbose=args.verbose)
 
-  print("Relation EDM, start spans only")
-  compute_f1(gold_graphs, predicted_graphs, False, True,
+    print("Relation EDM, start spans only")
+    compute_f1(gold_graphs, predicted_graphs, False, True,
             include_constants, labeled, include_span_ends=False,
             score_nones=score_nones, verbose=args.verbose)
 
